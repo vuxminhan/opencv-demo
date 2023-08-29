@@ -2,7 +2,7 @@ import cv2
 import mediapipe as mp
 import time
 import math
-
+import numpy as np
 
 class poseDetector():
             #    static_image_mode=False,
@@ -57,8 +57,12 @@ class poseDetector():
         # Calculate the Angle
         angle = math.degrees(math.atan2(y3 - y2, x3 - x2) -
                              math.atan2(y1 - y2, x1 - x2))
-        if angle < 0:
-            angle += 360
+        if angle > 180.0:
+            angle = 360 - angle
+        if angle < 0 :
+            angle = -angle
+                
+        
 
         # print(angle)
 
@@ -76,13 +80,18 @@ class poseDetector():
                         cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 255), 2)
         return angle
 
+    
+
 def main():
     cap = cv2.VideoCapture('PoseVideos/1.mp4')
+    #flip the video vertically if pos
+    
     pTime = 0
     detector = poseDetector()
     counter = 0
-    angle_threshold = 300  # Threshold for the angle to consider as successful curl
+    angle_threshold = 60 # Threshold for the angle to consider as successful curl
     was_above_threshold = False
+    up = True
 
     while True:
         success, img = cap.read()
@@ -90,7 +99,7 @@ def main():
         lmList = detector.findPosition(img, draw=False)
 
         if len(lmList) != 0:
-            print(lmList[14])
+            # print(lmList[11],lmList[13],lmList[15])
             cv2.circle(img, (lmList[14][1], lmList[14][2]), 15, (0, 0, 255), cv2.FILLED)
 
         cTime = time.time()
@@ -98,15 +107,18 @@ def main():
         pTime = cTime
 
         current_angle = detector.findAngle(img, 11, 13, 15)
-        
-        if current_angle > angle_threshold and not was_above_threshold:
+        #check if point 15 is to the right point 13 to the right point 11
+        #if so, then the angle is negative
+        print(current_angle)
+        if current_angle < angle_threshold and up:
             counter += 1
-            was_above_threshold = True
-        elif current_angle <= angle_threshold:
-            was_above_threshold = False
+            up = False
+        if current_angle > 160 and not up:
+            up = True
+        
 
         # Display the counter value on the image
-        cv2.putText(img, str(counter), (70, 50), cv2.FONT_HERSHEY_PLAIN, 3, (255, 0, 0), 3)
+        cv2.putText(img, str(counter), (70, 50), cv2.FONT_HERSHEY_PLAIN, 3, (175, 175, 0), 3)
 
         cv2.imshow("Image", img)
         cv2.waitKey(1)
