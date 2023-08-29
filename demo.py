@@ -90,7 +90,7 @@ def main():
     detector = poseDetector()
     counter = 0
     angle_threshold = 60 # Threshold for the angle to consider as successful curl
-    was_above_threshold = False
+    lower_threshold = 160 # Threshold for the angle to consider as successful curl
     up = True
 
     while True:
@@ -113,7 +113,7 @@ def main():
         if current_angle < angle_threshold and up:
             counter += 1
             up = False
-        if current_angle > 160 and not up:
+        if current_angle > lower_threshold and not up:
             up = True
         
 
