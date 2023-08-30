@@ -25,6 +25,8 @@ class poseDetector():
         self.mpDraw = mp.solutions.drawing_utils
         self.mpPose = mp.solutions.pose
         self.pose = self.mpPose.Pose()
+        self.angle_threshold = 60 # Threshold for the angle to consider as successful curl
+        self.lower_threshold = 160 # Threshold for the angle to consider as successful curl
 
     def findPose(self, img, draw=True):
         imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -79,48 +81,77 @@ class poseDetector():
             cv2.putText(img, str(int(angle)), (x2 - 50, y2 + 50),
                         cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 255), 2)
         return angle
+    
+    def provide_feedback(self, img, landmarks, angle, armpit_angle):
+        feedback_text = ""
 
+        # Detect relying on momentum
+        if angle > self.angle_threshold and armpit_angle < self.lower_threshold:
+            feedback_text += "Avoid relying on momentum. Control the movement."
+
+        # Detect rushing the reps
+        if angle < self.angle_threshold and armpit_angle > self.angle_threshold:
+            feedback_text += "Slow down and maintain a controlled pace."
+
+        # Detect partial range of motion
+        if angle > self.angle_threshold and armpit_angle > self.angle_threshold:
+            feedback_text += "Ensure full range of motion by extending fully."
+
+        # Detect moving elbows
+        if landmarks:
+            left_shoulder = landmarks[11][1:]
+            right_shoulder = landmarks[12][1:]
+            left_elbow = landmarks[13][1:]
+            right_elbow = landmarks[14][1:]
+
+            if abs(left_shoulder[1] - left_elbow[1]) > 30 or abs(right_shoulder[1] - right_elbow[1]) > 30:
+                feedback_text += "Keep your elbows stable and close to your body."
+
+        cv2.putText(img, feedback_text, (70, 100), cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 255), 2)
+
+# Modify your main lo
     
 
 def main():
     cap = cv2.VideoCapture('PoseVideos/1.mp4')
-    #flip the video vertically if pos
-    
     pTime = 0
     detector = poseDetector()
     counter = 0
-    angle_threshold = 60 # Threshold for the angle to consider as successful curl
-    lower_threshold = 160 # Threshold for the angle to consider as successful curl
     up = True
 
     while True:
         success, img = cap.read()
-        img = detector.findPose(img)
-        lmList = detector.findPosition(img, draw=False)
-
+        landmarks = detector.findPose(img)
+        lmList = detector.findPosition(landmarks, draw=False)
+        
+        #counter
+        current_angle = detector.findAngle(landmarks, 11, 13, 15)
+        armpit_angle = detector.findAngle(landmarks, 23, 11, 13)
+        
         if len(lmList) != 0:
-            # print(lmList[11],lmList[13],lmList[15])
-            cv2.circle(img, (lmList[14][1], lmList[14][2]), 15, (0, 0, 255), cv2.FILLED)
+            cv2.circle(landmarks, (lmList[14][1], lmList[14][2]), 15, (0, 0, 255), cv2.FILLED)
+            
+            # Provide feedback
+            detector.provide_feedback(img, lmList, current_angle, armpit_angle)
 
         cTime = time.time()
         fps = 1 / (cTime - pTime)
         pTime = cTime
 
-        current_angle = detector.findAngle(img, 11, 13, 15)
-        #check if point 15 is to the right point 13 to the right point 11
-        #if so, then the angle is negative
-        print(current_angle)
-        if current_angle < angle_threshold and up:
+
+        if current_angle < detector.angle_threshold and up:
             counter += 1
             up = False
-        if current_angle > lower_threshold and not up:
+            state = 2
+        elif current_angle > detector.lower_threshold and not up:
             up = True
-        
+            state = 0
+        else:
+            state = 1
 
         # Display the counter value on the image
-        cv2.putText(img, str(counter), (70, 50), cv2.FONT_HERSHEY_PLAIN, 3, (175, 175, 0), 3)
-
-        cv2.imshow("Image", img)
+        cv2.putText(landmarks, str(counter), (70, 50), cv2.FONT_HERSHEY_PLAIN, 3, (175, 175, 0), 3)
+        cv2.imshow("Image", landmarks)
         cv2.waitKey(1)
 
 if __name__ == "__main__":
